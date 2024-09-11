@@ -72,13 +72,13 @@ end
 
 ---@generic K, V
 ---@param array V[]
----@param key K | fun(v: V): K
+---@param key fun(v: V): K
 ---@return { [K]: V }
 local function map(array, key)
     local map = {}
 
     for _, v in ipairs(array) do
-        local k = type(key) == "function" and key(v) or v[key]
+        local k = key(v)
         map[k] = v
     end
 

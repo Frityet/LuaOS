@@ -1,0 +1,7 @@
+{
+    "workspace.library": [
+        "/Users/frityet/Library/Application Support/Code/User/globalStorage/sumneko.lua/addonManager/addons/xmake/module/library"
+    ],
+    "workspace.checkThirdParty": false,
+    "runtime.version": "LuaJIT"
+}

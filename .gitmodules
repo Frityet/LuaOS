@@ -4,7 +4,7 @@
 [submodule "extern/limine"]
 	path = extern/limine
 	url = https://github.com/limine-bootloader/limine.git
-	branch = v4.x-branch-binary
+	branch = v8.x-binary
 [submodule "extern/terminal"]
 	path = extern/terminal
 	url = https://github.com/limine-bootloader/terminal

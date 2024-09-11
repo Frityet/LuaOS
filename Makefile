@@ -19,7 +19,7 @@
 
 CC = clang
 LD = ld.lld
-LUAJIT= luajit
+LUAJIT = luajit
 
 GDB := x86_64-elf-gdb
 
@@ -66,7 +66,7 @@ CFLAGS +=       						\
 	-fms-extensions\
 	-fblocks
 
-LDFLAGS +=         			\
+LDFLAGS =         			\
     -nostdlib               \
     -static                 \
     -m elf_x86_64           \
@@ -110,15 +110,15 @@ extern/ovmf-x64:
 
 extern/limine/limine-deploy:
 	@/usr/bin/printf "[\033[1;35mKernel - extern\033[0m] \033[32mBuilding Limine\n\033[0m"
-	@$(MAKE) -C extern/limine
+	@cd extern/limine && git reset
+# compiling limine requires that our LDFLAGS are not inherited
+	@$(MAKE) -C extern/limine LDFLAGS=""
 
 extern/LuaJIT/src/lua.h: extern/LuaJIT
 
 user-land: build-userland.lua
 	@/usr/bin/printf "[\033[1;35mUserland\033[0m] \033[32mBuilding userland\n\033[0m"
 	@$(LUAJIT) build-userland.lua
-
-
 
 res/limine.cfg: user-land
 
@@ -129,11 +129,14 @@ build/bin/luaos.iso: extern/limine extern/limine/limine-deploy build/bin/luck.el
 # All files in Userland/lua_modules/share/lua/5.1/ will be copied to the root of the ISO
 	cp -r Userland/lua_modules/share/lua/5.1/* $(dir $@)/iso
 
-	cp \
-		build/bin/luck.elf res/powered-by-lua.bmp res/limine.cfg \
-		res/font.bin extern/limine/limine-cd.bin extern/limine/limine.sys \
-		extern/limine/limine-cd-efi.bin\
-		$(dir $@)/iso
+	# cp \
+	# 	build/bin/luck.elf res/powered-by-lua.bmp res/limine.cfg \
+	# 	res/font.bin extern/limine/limine-cd.bin extern/limine/limine.sys \
+	# 	extern/limine/limine-cd-efi.bin\
+	# 	$(dir $@)/iso
+	cp build/bin/luck.elf $(dir $@)/iso/luck.elf
+	cp res/powered-by-lua.bmp res/limine.cfg res/font.bin $(dir $@)/iso
+	cp extern/limine/limine-uefi-cd.bin extern/limine/limine-bios.sys extern/limine/limine-cd-efi.bin $(dir $@)/iso
 	xorriso -as mkisofs\
 			-b limine-cd.bin\
 			-no-emul-boot\
