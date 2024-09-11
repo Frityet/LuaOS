@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2023 pitust
+ * Copyright (C) 2021-2024 pitust
  *
  * This file is part of LuaOS.
  *
@@ -56,6 +56,17 @@ uint64_t limine_phys_to_virt(uint64_t phys) {
 	if (VIRTUAL_MEMORY_HIGH == 0) VIRTUAL_MEMORY_HIGH = hhdm_request.response->offset;
 	if (phys >= 0xffff800000000000)  $panic("invalid call to phys_to_virt()");
 	return phys + hhdm_request.response->offset;
+}
+
+struct limine_file *nullable find_module(const char *nonnull name)
+{
+    size_t name_len = string_length(name);
+    for (size_t i = 0; i < module_request.response->module_count; i++) {
+        const char *nullable modnam = get_file_name(module_request.response->modules[i]->cmdline);
+        if (modnam && string_compare(string_length((const char *nonnull)modnam), (const char *nonnull)modnam, name_len, name) == 0)
+            return module_request.response->modules[i];
+    }
+    return nullptr;
 }
 
 void bootloader_init()

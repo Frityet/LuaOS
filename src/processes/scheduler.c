@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2023 pitulst
+ * Copyright (C) 2021-2024 pitulst
  *
  * This file is part of LuaOS.
  *
@@ -27,11 +27,12 @@
 #include "luck/memory/manager.h"
 #include "luck/bootloader/limine.h"
 
-
 #include "lj-libc/limits.h"
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
+
+#define RFLAGS 0x0202
 
 void *ljsup_alloc(void *ud, void *ptr, size_t osize, size_t nsize);
 
@@ -47,6 +48,7 @@ int luaopen_kernel(lua_State *L);
 [[noreturn]]
 static void thread_entry(Thread *nonnull t)
 {
+    $debug("Starting thread {}", t->name);
     lua_State *L = t->lua;
 
     if (lua_pcall(L, 0, 0, 0) == LUA_OK) {
@@ -66,8 +68,12 @@ static Thread *nullable ready = nullptr;
 static Thread *nullable ready_tail = nullptr;
 static Thread *nullable idle = nullptr;
 
+//During spawn of a thread, we need to lock the scheduler
+static Lock spawn_lock = false;
+
 Thread *spawn_thread(void *addr, size_t size, const char *name)
 {
+    $debug("Creating a thread called {}", name);
     Thread *t = kalloc(sizeof(Thread));
 
     lua_State *L = t->lua = lua_newstate(ljsup_alloc, nullptr);
@@ -83,36 +89,35 @@ Thread *spawn_thread(void *addr, size_t size, const char *name)
     luaopen_kernel(L);
 
     size_t name_len = string_length(name);
-    if (string_length(name) < 64) {
-        string_copy(64, t->name, name_len, name);
-    } else {
-        memory_copy(t->name, name, 63);
-        t->name[63] = 0;
-    }
-    int v = luaL_loadbuffer(L, addr, size, t->name);
+    string_copy(64, t->name, name_len, name);
+
+    sdword v = luaL_loadbuffer(L, addr, size, t->name);
     if (v != 0)
         $panic("Could not spawn thread! Reason: {}", lua_tostring(L, -1));
 
-    t->stack_base = kalloc(Thread_STACKSIZE);
-    if (!t->stack_base) $panic("failed to allocate stack");
-    t->cpu_context.rsp = (uint64_t)(t->stack_base + Thread_STACKSIZE);
-    t->cpu_context.rip = (uint64_t)(thread_entry);
-    t->cpu_context.rdi = (uint64_t)(t);
-    t->cpu_context.rflags = 0x202; // all the flags that we need
+    t->stack_base = $assert_nonnull(kalloc(Thread_STACKSIZE), "failed to allocate stack");
+    t->cpu_context.rsp = (qword)(t->stack_base + Thread_STACKSIZE);
+    t->cpu_context.rip = (qword)(thread_entry);
+    t->cpu_context.rdi = (qword)(t);
+    t->cpu_context.rflags = RFLAGS; // all the flags that we need
     t->cpu_context.cs = 0x28;
     t->cpu_context.ss = 0x30;
     t->ready = true;
 
     acquire_lock(&sched_lock);
-    t->next_task = ready;
-    if (ready) {
-        ready->previous_task = t;
-    } else {
-        // TODO: in debug (or some kind of "safe") mode only
-        if (ready_tail) $panic("i'm an expert at linked lists");
-        ready_tail = t;
+    {
+        t->next_task = ready;
+
+        if (ready) {
+            ready->previous_task = t;
+        } else {
+            // TODO: in debug (or some kind of "safe") mode only
+            if (ready_tail) $panic("i'm an expert at linked lists");
+            ready_tail = t;
+        }
+
+        ready = t;
     }
-    ready = t;
     release_lock(&sched_lock);
 
     return t;
@@ -129,24 +134,27 @@ static qword get_lapic_addr_dyn(void) {
     $asm ("retq");
 }
 
-static Thread *nullable threads[256];
-static CPUContext idle_tasks[256];
-static bool was_threadsweeping[256];
+static Thread *nullable threads[Thread_COUNT];
+static CPUContext idle_tasks[Thread_COUNT];
+static bool was_threadsweeping[Thread_COUNT];
 void scheduler_init(void)
 {
     lapic_id = $virt(get_lapic_addr_dyn() & ~0xfff, dword);
 }
 
+[[noreturn]]
+[[gnu::used]]
 static void idle_task(void)
 {
     $info("welcome to the luaOS idle task for whatever core i'm on. I'm just chillin' here...");
     while (true) $asm("hlt");
 }
-static atomic_bool threadsweeper_lock;
+static _Atomic(bool) threadsweeper_lock;
 static __attribute__((aligned(16))) uint8_t threadsweeper_stack[16384];
 
-static void threadsweeper(Thread *nonnull t) {
-    uint64_t lapic = *lapic_id >> 24;
+static void threadsweeper(Thread *nonnull t)
+{
+    $debug("Cleaning up thread {}", t->name);
     acquire_lock(&t->lock);
     lua_close(t->lua);
     t->cpu_context.rip = 0xdeadbeefdeadbeef;
@@ -160,33 +168,35 @@ void reschedule(CPUContext *nonnull ctx)
 {
     if (atomic_load(&sched_lock)) return;
     acquire_lock(&sched_lock);
-    uint64_t lapic = *lapic_id >> 24;
+    qword lapic = *lapic_id >> 24;
     if (ctx->interrupt_number == 3) {
         if (!was_threadsweeping[lapic]) {
             $panic("invalid int3!");
         }
     }
+
     if (threads[lapic]) {
-        Thread *told = threads[lapic];
-        if (atomic_load(&told->lock)) return;
-        acquire_lock(&told->lock);
-        told->cpu_context = *ctx;
-        if (told->ready) {
+        Thread *t_old = threads[lapic];
+        if (atomic_load(&t_old->lock)) return;
+        acquire_lock(&t_old->lock);
+        t_old->cpu_context = *ctx;
+        if (t_old->ready) {
             if (ready_tail) {
-                ready_tail->next_task = told;
-                told->previous_task = ready_tail;
+                ready_tail->next_task = t_old;
+                t_old->previous_task = ready_tail;
             } else {
-                ready = ready_tail = told;
+                ready = ready_tail = t_old;
             }
         } else {
-            if (idle) idle->previous_task = told;
-            told->next_task = idle;
-            idle = told;
+            if (idle) idle->previous_task = t_old;
+            t_old->next_task = idle;
+            idle = t_old;
         }
         release_lock(&threads[lapic]->lock);
     } else {
         if (!was_threadsweeping[lapic]) idle_tasks[lapic] = *ctx;
     }
+
     if (ready) {
         auto tnew = (Thread *nonnull)ready;
 
@@ -211,14 +221,14 @@ void reschedule(CPUContext *nonnull ctx)
             was_threadsweeping[lapic] = true;
             threads[lapic] = nullptr;
         } else {
-            ctx->rflags = 0x202;
+            ctx->rflags = RFLAGS;
         }
         release_lock(&tnew->lock);
     } else {
     idle:
         *ctx = idle_tasks[lapic];
         threads[lapic] = nullptr;
-        ctx->rflags = 0x202;
+        ctx->rflags = RFLAGS;
     }
     release_lock(&sched_lock);
 }
@@ -277,11 +287,28 @@ void wake_all_futexes(Futex *mtx)
     acquire_lock(&mtx->lock);
 }
 
-// function scheduler.spawn(modulename: string, ...: string): Thread
+// function scheduler.spawn(modulename: string): Thread?, string?
 static int libscheduler_spawn(lua_State *nonnull L)
 {
+    size_t n = 0;
+    const char *modulename = luaL_checklstring(L, 1, &n);
+    char expanded[n + 5]; //`modulename`.lua
+    struct limine_file *nullable f = find_module(modulename);
+    if (f == nullptr) {
+        string_copy(sizeof(expanded), expanded, n, modulename);
+        string_concatenate(sizeof(expanded), expanded, 5, ".lua");
+        f = find_module(expanded);
+    }
 
+    if (f == nullptr) {
+        lua_pushnil(L);
+        lua_pushfstring(L, "module '%s' not found", modulename);
+        return 2;
+    }
 
+    Thread *thr = spawn_thread(f->address, f->size, modulename);
+
+    lua_pushlightuserdata(L, thr);
     return 1;
 }
 

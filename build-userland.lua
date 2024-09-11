@@ -1,4 +1,4 @@
--- Copyright (C) 2023 Amrit Bhogal
+-- Copyright (C) 2021-2024 Amrit Bhogal
 --
 -- This file is part of LuaOS.
 --
@@ -61,37 +61,13 @@ local function exec(proc, ...)
     end)
 end
 
-debug.setmetatable(function() end, {
-    __index = {
-        ---@generic T
-        ---@param self fun(): T
-        ---@return T[]
-        collect = function(self)
-            local vals = {}
-            for val in self do vals[#vals+1] = val end
-            return vals
-        end,
-
-        print = function(self)
-            for val in self do print(val) end
-        end
-    }
-})
-
----Gets all lua files in Userland/lua_modules/share/lua/5.1/
----@return string[]
-local function get_userland()
-    local files = {}
-
-    -- local proc = assert(io.popen("find Userland/lua_modules/share/lua/5.1/ -type f -name '*.lua'", "r"))
-    -- for file in proc:lines() do
-    --     files[#files+1] = file
-    -- end
-    for file in exec("find", "Userland/lua_modules/share/lua/5.1/", "-type", "f", "-name", "'*.lua'") do
-        files[#files+1] = file
-    end
-
-    return files
+---@generic T
+---@param self fun(): T
+---@return T[]
+local function collect(it)
+    local vals = {}
+    for val in it do vals[#vals+1] = val end
+    return vals
 end
 
 ---@generic K, V
@@ -107,6 +83,12 @@ local function map(array, key)
     end
 
     return map
+end
+
+---Gets all lua files in Userland/lua_modules/share/lua/5.1/
+---@return string[]
+local function get_userland()
+    return collect(exec("/usr/bin/find", "Userland/lua_modules/share/lua/5.1", "-type", "f", "-name", "'*.lua'"))
 end
 
 local config = {
@@ -205,7 +187,7 @@ for name, file in pairs(config.targets["LuaOS"].modules) do
     --[[@cast name string]]
     local dir = name:match("(.*)/")
     if dir ~= nil then
-        exec("mkdir", "-p", "build/iso/boot/"..dir):collect()
+        collect(exec("mkdir", "-p", "build/iso/boot/"..dir))
     end
     exec("cp", file, "build/iso/boot/"..name)
     print("[\x1b[1;35mUserland\x1b[0m] \x1b[32mCopied \x1b[33m"..file.."\x1b[32m to \x1b[33mbuild/iso/boot/"..name.."\x1b[0m")

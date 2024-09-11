@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2023 Amrit Bhogal
+ * Copyright (C) 2021-2024 Amrit Bhogal
  *
  * This file is part of LuaOS.
  *
@@ -24,15 +24,16 @@
 
 $nonnull_begin
 
-
-static size_t string_length(const char *str)
+[[gnu::always_inline]]
+static inline size_t string_length(const char *str)
 {
     size_t len = 0;
-    while (str[len] != '\0') len++;
+    while (str[len++] != '\0');
     return len;
 }
 
-static int string_compare(size_t len1, const char str1[static len1], size_t len2, const char str2[static len2])
+[[gnu::always_inline]]
+static inline int string_compare(size_t len1, const char str1[static len1], size_t len2, const char str2[static len2])
 {
     size_t len = len1 < len2 ? len1 : len2;
 
@@ -45,15 +46,18 @@ static int string_compare(size_t len1, const char str1[static len1], size_t len2
     return 0;
 }
 
-static void string_copy(size_t bufsiz, char dest[static bufsiz], size_t n, const char src[static n])
+[[gnu::always_inline]]
+static inline void string_copy(size_t bufsiz, char dest[static bufsiz], size_t n, const char src[static n])
 {
-    for (size_t i = 0; i < n && i < bufsiz - 1 && src[i] != '\0'; i++)
+    size_t i;
+    for (i = 0; i < n && i < bufsiz - 1 && src[i] != '\0'; i++)
         dest[i] = src[i];
 
-    dest[n] = '\0';
+    dest[i] = '\0';
 }
 
-static char *string_concatenate(size_t bufsiz, char *dest, size_t n, const char src[static n])
+[[gnu::always_inline]]
+static inline char *string_concatenate(size_t bufsiz, char dest[static bufsiz], size_t n, const char src[static n])
 {
     size_t len = string_length(dest);
     string_copy(bufsiz - len, dest + len, n, src);

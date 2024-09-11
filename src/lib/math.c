@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2023 Louis Dupraz
+ * Copyright (C) 2021-2024 Louis Dupraz
  *
  * This file is part of LuaOS.
  *

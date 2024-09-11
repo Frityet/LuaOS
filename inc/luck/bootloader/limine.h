@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2023 Amrit Bhogal
+ * Copyright (C) 2021-2024 Amrit Bhogal
  *
  * This file is part of LuaOS.
  *
@@ -39,6 +39,8 @@ void bootloader_init(void);
 
 qword limine_virt_to_phys(qword virt);
 qword limine_phys_to_virt(qword phys);
+
+struct limine_file *nullable find_module(const char *nonnull name);
 
 #define $phys(value) limine_virt_to_phys((qword)(value))
 #define $virt(value, ...)                                                       \

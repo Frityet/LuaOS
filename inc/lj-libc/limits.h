@@ -12,9 +12,7 @@ typedef struct {
 
 typedef struct {
 	int errno;
-	FILE *stdin;
-	FILE *stdout;
-	FILE *stderr;
+	FILE *stdin, *stdout, *stderr;
 } PCB;
 extern PCB *_get_pcb();
 

@@ -1,5 +1,5 @@
  /**
- * Copyright (C) 2023 Amrit Bhogal
+ * Copyright (C) 2021-2024 Amrit Bhogal
  *
  * This file is part of LuaOS.
  *

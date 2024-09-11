@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2023 Amrit Bhogal
+ * Copyright (C) 2021-2024 Amrit Bhogal
  *
  * This file is part of LuaOS.
  *
@@ -47,15 +47,16 @@ static void stdout_write(const char *str, size_t siz)
     }
 }
 
-static void ps2_gets(char *buf)
+static size_t ps2_gets(char *buf)
 {
+    size_t n = 0;
     char *start = buf;
     while (true) {
         char c = ps2_getc();
         if (c == '\n') {
             stdout_write("\n", 1);
             *buf = 0;
-            return;
+            return n;
         }
         if (c == '\b') {
             if (buf == start) continue;
@@ -63,6 +64,7 @@ static void ps2_gets(char *buf)
             stdout_write("\b \b", 3);
             continue;
         }
+        n++;
         *buf++ = c;
         stdout_write(&c, 1);
     }
@@ -76,7 +78,7 @@ static int kernel_log_debug(lua_State *L)
     lua_getstack(L, 1, &dbg);
     lua_getinfo(L, "nSl", &dbg);
     $lua_write_log(dbg.source, dbg.currentline, dbg.name, debug, msg);
-    return LUA_OK;
+    return 0;
 }
 
 static int kernel_log_info(lua_State *L)
@@ -86,7 +88,7 @@ static int kernel_log_info(lua_State *L)
     lua_getstack(L, 1, &dbg);
     lua_getinfo(L, "nSl", &dbg);
     $lua_write_log(dbg.source, dbg.currentline, dbg.name, info, msg);
-    return LUA_OK;
+    return 0;
 }
 
 static int kernel_log_warning(lua_State *L)
@@ -96,7 +98,7 @@ static int kernel_log_warning(lua_State *L)
     lua_getstack(L, 1, &dbg);
     lua_getinfo(L, "nSl", &dbg);
     $lua_write_log(dbg.source, dbg.currentline, dbg.name, warning, msg);
-    return LUA_OK;
+    return 0;
 }
 
 static int kernel_log_error(lua_State *L)
@@ -106,7 +108,7 @@ static int kernel_log_error(lua_State *L)
     lua_getstack(L, 1, &dbg);
     lua_getinfo(L, "nSl", &dbg);
     $lua_write_log(dbg.source, dbg.currentline, dbg.name, error, msg);
-    return LUA_OK;
+    return 0;
 }
 
 static int kernel_log_panic(lua_State *L)
@@ -116,31 +118,32 @@ static int kernel_log_panic(lua_State *L)
     lua_getstack(L, 1, &dbg);
     lua_getinfo(L, "nSl", &dbg);
     $lua_write_log(dbg.source, dbg.currentline, dbg.name, panic, msg);
-    return LUA_OK;
+    return 0;
 }
 
 static const luaL_Reg libkernel_log[] = {
     { "debug", kernel_log_debug },
     { "info", kernel_log_info },
-    { "$warning", kernel_log_warning },
+    { "warning", kernel_log_warning },
     { "error", kernel_log_error },
-    { "$panic", kernel_log_panic },
+    { "panic", kernel_log_panic },
     { nullptr, nullptr }
 };
 
 static int kernel_write(lua_State *L)
 {
-    const char *str = luaL_checkstring(L, 1);
-    stdout_write(str, string_length(str));
+    size_t n = 0;
+    const char *str = luaL_checklstring(L, 1, &n);
+    stdout_write(str, n);
 
-    return LUA_OK;
+    return 0;
 }
 
 static int kernel_read(lua_State *L)
 {
     static char buf[1024 * 1024] = {0};
-    ps2_gets(buf);
-    lua_pushstring(L, buf);
+    size_t n = ps2_gets(buf);
+    lua_pushlstring(L, buf, n);
     return 1;
 }
 
@@ -155,17 +158,20 @@ int luaopen_kernel(lua_State *L)
     luaL_newlib(L, libkernel);
     lua_setglobal(L, "kernel");
 
+    #define $add_module(named) ({ \
+        lua_getglobal(L, "kernel"); \
+        luaopen_##named(L); \
+        lua_setfield(L, -2, #named); \
+    })
+
     lua_getglobal(L, "kernel");
     luaL_newlib(L, libkernel_log);
     lua_setfield(L, -2, "log");
 
-    lua_getglobal(L, "kernel");
-    luaopen_framebuffer(L);
-    lua_setfield(L, -2, "framebuffer");
+    $add_module(framebuffer);
+    $add_module(scheduler);
 
-    lua_getglobal(L, "kernel");
-    luaopen_scheduler(L);
-    lua_setfield(L, -2, "scheduler");
+    #undef $add_module
 
     return 0;
 }

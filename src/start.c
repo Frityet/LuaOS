@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2023 Amrit Bhogal
+ * Copyright (C) 2021-2024 Amrit Bhogal
  *
  * This file is part of LuaOS.
  *
@@ -169,15 +169,17 @@ static void ps2_gets(char *buf)
 
     static FILE stdout = {
         .write = stdout_write,
+
     };
     _get_pcb()->stdout = &stdout;
 
     if (bootloader_module == nullptr) $panic("no modules available!");
-//    if (bootloader_module->module_count == 0) $panic("more than one module available!");
-
+    if (bootloader_module->module_count == 0) $panic("more than one module available!");
     $info("Initialising scheduler");
     scheduler_init();
     $success("Done");
+
+    $success("Initialisation complete");
 
     $info("Loading {} programs", bootloader_module->module_count);
     Thread *nonnull active_threads[bootloader_module->module_count];
@@ -187,13 +189,11 @@ static void ps2_gets(char *buf)
         if (ext_ptr == nullptr) continue;
         auto ext = (const char *nonnull)ext_ptr;
         if (string_compare(string_length(ext), ext, 3, "lua") != 0) continue;
-
         $info("  Loading {}...", m->cmdline);
         active_threads[i] = $assert_nonnull(spawn_thread(m->address, m->size, m->cmdline), "Failed to load lua module {}!", m->cmdline);
         $success("  Done");
     }
 
-    $success("Initalisation complete");
     halt();
 }
 

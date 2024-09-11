@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2023 Amrit Bhogal
+ * Copyright (C) 2021-2024 Amrit Bhogal
  *
  * This file is part of LuaOS.
  *
@@ -26,10 +26,6 @@
 
 $nonnull_begin
 
-enum {
-    Thread_STACKSIZE = 0x4000,
-};
-
 typedef struct Futex {
     struct Thread *head;
     Lock lock;
@@ -44,8 +40,13 @@ typedef struct Thread {
     bool ready, kill;
     Lock lock;
 
-    struct Thread *nullable next_mutex;
+    Futex *nullable next_mutex; //?
 } Thread;
+
+enum {
+    Thread_STACKSIZE = 0x4000,
+    Thread_COUNT = 0x100,
+};
 
 void wait_for_thread(Thread *thread);
 void wake_futex(Futex *mtx);
