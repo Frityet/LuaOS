@@ -1,5 +1,5 @@
-; 
-; Copyright (C) 2023 pitust
+;
+; Copyright (C) 2021-2024 pitust
 ;
 ; This file is part of LuaOS.
 ;

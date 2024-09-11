@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2023 pitulst
+ * Copyright (C) 2021-2024 pitulst
  *
  * This file is part of LuaOS.
  *
