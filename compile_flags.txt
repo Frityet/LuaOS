@@ -1,6 +1,0 @@
--Iinc
--Iextern/
--target
-x86_64-elf
--ffreestanding
--std=gnu2x

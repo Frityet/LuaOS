@@ -124,30 +124,25 @@ res/limine.cfg: user-land
 
 build/bin/luaos.iso: extern/limine extern/limine/limine build/bin/luck.elf res/limine.cfg user-land
 	@/usr/bin/printf "[\033[1;35mKernel\033[0m] \033[32mBuilding ISO\n\033[0m"
+	@rm -rf $(dir $@)/iso
 	@mkdir -p $(dir $@)/iso
 
 # All files in Userland/lua_modules/share/lua/5.1/ will be copied to the root of the ISO
 	cp -r Userland/lua_modules/share/lua/5.1/* $(dir $@)/iso
 
-	# cp \
-	# 	build/bin/luck.elf res/powered-by-lua.bmp res/limine.cfg \
-	# 	res/font.bin extern/limine/limine-cd.bin extern/limine/limine.sys \
-	# 	extern/limine/limine-cd-efi.bin\
-	# 	$(dir $@)/iso
 	cp build/bin/luck.elf $(dir $@)/iso/luck.elf
 	cp res/powered-by-lua.bmp res/limine.cfg res/font.bin $(dir $@)/iso
-	cp extern/limine/limine-uefi-cd.bin extern/limine/limine-bios.sys extern/limine/BOOTX64.EFI $(dir $@)/iso
+	cp extern/limine/limine-bios-cd.bin extern/limine/limine-uefi-cd.bin extern/limine/limine-bios.sys extern/limine/BOOTX64.EFI $(dir $@)/iso
 	xorriso -as mkisofs\
-			-b limine-uefi-cd.bin\
+			-b limine-bios-cd.bin\
 			-no-emul-boot\
 			-boot-load-size 4\
 			-boot-info-table\
-			--efi-boot BOOTX64.EFI\
+			--efi-boot limine-uefi-cd.bin\
 			-efi-boot-part\
 			--efi-boot-image\
 			--protective-msdos-label\
 			$(dir $@)/iso -o $@
-	rm -rf $(dir $@)/iso
 
 	extern/limine/limine bios-install $@
 	@/usr/bin/printf "[\033[1;35mKernel\033[0m] \033[32mISO built at \033[33m$@\n\033[0m"

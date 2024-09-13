@@ -140,6 +140,8 @@ local config = {
     }
 }
 
+config.targets["LuaOS"].modules["limine-bios.sys"] = "limine-bios.sys"
+
 print("[\x1b[1;35mUserland\x1b[0m] \x1b[32mBuilding \x1b[33mres/limine.cfg\n\x1b[0m")
 
 -- Dump the config to res/limine.cfg
@@ -177,8 +179,6 @@ for name, target in pairs(config.targets) do
         wl "    MODULE_CMDLINE="(module)
     end
 end
-
-file:close()
 
 
 -- Copy over the modules into the `build/iso/
